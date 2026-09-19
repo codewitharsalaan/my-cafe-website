@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Noir & Bean Cafe in Shivaji Nagar, Govandi.">
+<title>Noir & Bean | Luxury Cafe</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="header">
+  <a href="#home" class="logo">NOIR<span>&</span>BEAN</a>
+  <nav class="nav">
+    <a href="#home">Home</a><a href="#about">About</a><a href="#menu">Menu</a>
+    <a href="#gallery">Gallery</a><a href="#order">Order</a><a href="#contact">Contact</a>
+  </nav>
+</header>
+
+<!-- Shown when this phone/computer has an order that is still in progress -->
+<a id="activeOrder" class="active-order" hidden></a>
+
+<main>
+<section id="home" class="hero">
+  <div>
+    <p class="eyebrow">COFFEE • DESSERTS • EXPERIENCE</p>
+    <h1>Your Everyday Coffee, Made Extraordinary.</h1>
+    <p class="hero-text">A premium cafe experience in Shivaji Nagar, Govandi — made for coffee, conversations and memorable evenings.</p>
+    <div class="buttons"><a href="#menu" class="btn primary">Explore Menu</a><a href="#order" class="btn">Order Now</a></div>
+  </div>
+  <div class="hero-image"><img src="https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=1200&q=85" alt="Premium cafe interior"></div>
+</section>
+
+<section id="about" class="section about">
+  <div><p class="eyebrow">OUR STORY</p><h2>A place to slow down.</h2></div>
+  <p>Welcome to Noir & Bean, a modern neighborhood cafe designed for relaxed mornings, evening conversations and great coffee. Enjoy freshly prepared drinks, desserts and light bites in a premium, comfortable atmosphere.</p>
+</section>
+
+<section id="menu" class="section">
+  <div class="section-heading"><p class="eyebrow">OUR MENU</p><h2>Simple. Delicious. Special.</h2></div>
+  <!-- Cards are filled in by loadMenu() from /api/menu -->
+  <div class="menu-grid" id="menuGrid"><p class="empty">Loading menu…</p></div>
+</section>
+
+<section id="gallery" class="section">
+  <div class="section-heading"><p class="eyebrow">THE SPACE</p><h2>Made for good moments.</h2></div>
+  <div class="gallery">
+    <img class="large" src="https://images.unsplash.com/photo-1493857671505-72967e2e2760?auto=format&fit=crop&w=1200&q=85" alt="Cafe interior">
+    <img src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=900&q=85" alt="Cafe seating">
+    <img src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=85" alt="Fresh coffee">
+  </div>
+</section>
+
+<section id="order" class="section order-section">
+  <div class="section-heading"><p class="eyebrow">ORDER ONLINE</p><h2>Send your order directly to us.</h2><p class="note">Add items, enter your details and tap Place Order. You will get a live page showing your order status and the estimated time.</p></div>
+
+  <div class="order-layout">
+    <div class="cart"><h3>Your Order</h3><div id="cartItems"><p class="empty">Your cart is empty.</p></div><div class="total"><span>Total</span><strong id="cartTotal">₹0</strong></div></div>
+    <form id="orderForm">
+      <label>Name</label><input id="name" required maxlength="80" placeholder="Customer name">
+      <label>Phone</label><input id="phone" required type="tel" maxlength="20" placeholder="Customer phone">
+      <label>Order type</label>
+      <div class="choice">
+        <label><input type="radio" name="orderType" value="delivery" checked> Delivery</label>
+        <label><input type="radio" name="orderType" value="pickup"> Pickup</label>
+      </div>
+      <div id="addrWrap">
+        <label>Delivery address</label><textarea id="address" required maxlength="300" placeholder="House / flat, street, landmark"></textarea>
+      </div>
+      <label>Special Note</label><textarea id="note" maxlength="300" placeholder="Optional"></textarea>
+      <button class="btn primary full" type="submit">Place Order</button>
+    </form>
+  </div>
+</section>
+
+<section id="contact" class="section contact">
+  <div><p class="eyebrow">VISIT US</p><h2>Let's make your next coffee special.</h2></div>
+  <div class="details">
+    <p><strong>Location</strong><br>Shivaji Nagar, Govandi, Mumbai</p>
+    <p><strong>Phone</strong><br><a href="tel:+918108128277">+91 81081 28277</a></p>
+    <div class="buttons"><a class="btn primary" href="tel:+918108128277">Call Us</a><a class="btn" href="https://www.google.com/maps/search/?api=1&query=Shivaji+Nagar+Govandi+Mumbai" target="_blank" rel="noopener">Open Maps</a></div>
+  </div>
+</section>
+</main>
+
+<footer class="footer"><p>© 2026 Noir & Bean</p><p>Shivaji Nagar, Govandi, Mumbai</p></footer>
+
+<script>
+let menu = [];            // items from the server
+const cart = new Map();   // item id -> quantity
+
+function el(tag, className, text) {
+  const n = document.createElement(tag);
+  if (className) n.className = className;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+const findItem = (id) => menu.find((m) => m.id === id);
+
+async function loadMenu() {
+  const grid = document.getElementById("menuGrid");
+  try {
+    const res = await fetch("/api/menu");
+    if (!res.ok) throw new Error();
+    menu = await res.json();
+  } catch {
+    grid.replaceChildren(el("p", "empty", "Menu could not be loaded. Please refresh the page."));
+    return;
+  }
+  if (!menu.length) {
+    grid.replaceChildren(el("p", "empty", "Our menu is coming soon."));
+    return;
+  }
+  grid.replaceChildren(...menu.map((m, i) => {
+    const card = el("article", "menu-card");
+    if (m.image_url) {
+      const img = document.createElement("img");
+      img.src = m.image_url; img.alt = m.name; img.loading = "lazy";
+      card.append(img);
+    }
+    const info = el("div", "menu-info");
+    const price = el("div", "price");
+    const add = el("button", "", "Add");
+    add.type = "button";
+    add.addEventListener("click", () => addItem(m.id));
+    price.append(el("strong", "", "₹" + m.price), add);
+    info.append(el("span", "", String(i + 1).padStart(2, "0")), el("h3", "", m.name), el("p", "", m.description), price);
+    card.append(info);
+    return card;
+  }));
+  pruneCart();
+  renderCart();
+}
+
+// Remove cart items that are no longer on the menu.
+function pruneCart() {
+  for (const id of [...cart.keys()]) if (!findItem(id)) cart.delete(id);
+}
+
+function addItem(id) {
+  cart.set(id, (cart.get(id) || 0) + 1);
+  renderCart();
+  document.getElementById("order").scrollIntoView({ behavior: "smooth" });
+}
+
+function changeQty(id, change) {
+  const qty = (cart.get(id) || 0) + change;
+  if (qty <= 0) cart.delete(id); else cart.set(id, Math.min(qty, 20));
+  renderCart();
+}
+
+function renderCart() {
+  const box = document.getElementById("cartItems");
+  let total = 0;
+  if (!cart.size) {
+    box.replaceChildren(el("p", "empty", "Your cart is empty."));
+    document.getElementById("cartTotal").textContent = "₹0";
+    return;
+  }
+  box.replaceChildren(...[...cart].map(([id, qty]) => {
+    const item = findItem(id);
+    total += item.price * qty;
+    const row = el("div", "cart-item");
+    const left = el("div");
+    left.append(el("b", "", item.name), el("small", "", `₹${item.price} × ${qty}`));
+    const right = el("div");
+    const minus = el("button", "", "−"); minus.type = "button";
+    const plus = el("button", "", "+"); plus.type = "button";
+    minus.addEventListener("click", () => changeQty(id, -1));
+    plus.addEventListener("click", () => changeQty(id, 1));
+    right.append(minus, ` ${qty} `, plus);
+    row.append(left, right);
+    return row;
+  }));
+  document.getElementById("cartTotal").textContent = "₹" + total;
+}
+
+const orderForm = document.getElementById("orderForm");
+
+// Delivery needs an address, pickup does not.
+function syncOrderType() {
+  const delivery = orderForm.elements.orderType.value === "delivery";
+  document.getElementById("addrWrap").hidden = !delivery;
+  document.getElementById("address").required = delivery;
+}
+orderForm.addEventListener("change", (e) => { if (e.target.name === "orderType") syncOrderType(); });
+syncOrderType();
+
+// Orders are remembered on this device so the customer can come back to the tracking page.
+function rememberOrder(token) {
+  try {
+    const list = JSON.parse(localStorage.getItem("cafeOrders") || "[]");
+    localStorage.setItem("cafeOrders", JSON.stringify([token, ...list.filter((t) => t !== token)].slice(0, 5)));
+  } catch {}
+}
+
+orderForm.addEventListener("submit", async function (e) {
+  e.preventDefault();
+  if (!cart.size) return alert("Please add at least one item.");
+
+  const btn = this.querySelector("button[type=submit]");
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = "Placing order…";
+
+  try {
+    const res = await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: document.getElementById("name").value,
+        phone: document.getElementById("phone").value,
+        orderType: this.elements.orderType.value,
+        address: document.getElementById("address").value,
+        note: document.getElementById("note").value,
+        items: [...cart].map(([id, qty]) => ({ id, qty })),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (data.code === "ITEMS_CHANGED") await loadMenu();
+      throw new Error(data.error || "Could not place your order. Please try again.");
+    }
+    rememberOrder(data.trackToken);
+    try { sessionStorage.setItem("cafeWa:" + data.trackToken, data.whatsappUrl); } catch {}
+    location.href = "/track.html?t=" + encodeURIComponent(data.trackToken);
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false; btn.textContent = label;
+  }
+});
+
+// If this device has an order in progress, show a bar at the top with a link to track it.
+async function showActiveOrder() {
+  let tokens = [];
+  try { tokens = JSON.parse(localStorage.getItem("cafeOrders") || "[]"); } catch {}
+  if (!tokens.length) return;
+  try {
+    const res = await fetch("/api/track/" + encodeURIComponent(tokens[0]));
+    if (!res.ok) return;
+    const o = await res.json();
+    if (o.status === "done" || o.status === "cancelled") return;
+    const words = { new: "received", preparing: "being prepared", ready: o.orderType === "pickup" ? "ready for pickup" : "out for delivery" };
+    const bar = document.getElementById("activeOrder");
+    bar.href = "/track.html?t=" + encodeURIComponent(tokens[0]);
+    bar.textContent = `Your order #${o.orderId} is ${words[o.status]} — tap to track`;
+    bar.hidden = false;
+  } catch {}
+}
+
+loadMenu();
+showActiveOrder();
+</script>
+</body>
+</html>

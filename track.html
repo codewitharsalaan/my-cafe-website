@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Track your order · Noir & Bean</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .trk{max-width:640px;margin:0 auto;padding:32px 5% 80px;font-family:Arial,sans-serif}
+  .trk-card{border:1px solid #4b3925;background:#211a14;padding:26px;margin-bottom:18px}
+  .trk-eyebrow{color:#c99a5b;font-size:12px;letter-spacing:3px;margin-bottom:10px}
+  .trk h1{font:500 1.9rem/1.15 Georgia,serif;margin-bottom:22px}
+  .trk h2{font:500 1.15rem Georgia,serif;margin-bottom:14px}
+  .trk-muted{color:#958978;font-size:14px}
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .step{border-top:4px solid #40352a;padding-top:10px;font-size:12px;line-height:1.3;color:#958978}
+  .step.done{border-top-color:#c99a5b;color:#f4ead9}
+  .step.now{border-top-color:#c99a5b;color:#c99a5b;font-weight:bold;animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.45}}
+  @media (prefers-reduced-motion:reduce){.step.now{animation:none}}
+  .eta{text-align:center;padding:30px 18px}
+  .eta-big{font:600 3.4rem/1.1 Georgia,serif;color:#c99a5b;font-variant-numeric:tabular-nums}
+  .eta-label{margin-top:8px;color:#f4ead9;font-size:15px}
+  .eta-sub{margin-top:6px;color:#958978;font-size:14px}
+  .log,.lines{list-style:none}
+  .log li,.lines li{display:flex;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid #342a20;font-size:14px}
+  .log li:last-child,.lines li:last-child{border-bottom:0}
+  .log small{display:block;color:#958978;margin-top:2px}
+  .log .when{color:#cfc2af;white-space:nowrap}
+  .sum{display:flex;justify-content:space-between;padding-top:14px;border-top:1px solid #765633;font-weight:bold}
+  .sum span:last-child{color:#c99a5b}
+  .trk-actions{display:flex;flex-wrap:wrap;gap:12px}
+  .net{color:#e08f7a;font-size:13px;margin-bottom:12px;min-height:18px}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="logo">NOIR<span>&</span>BEAN</a>
+  <nav class="nav"><a href="/#menu">Menu</a><a href="tel:+918108128277">Call us</a></nav>
+</header>
+
+<main class="trk">
+  <p id="net" class="net" role="status"></p>
+  <div id="view"><p class="trk-muted">Loading your order…</p></div>
+</main>
+
+<script>
+const $view = document.getElementById("view");
+const $net = document.getElementById("net");
+
+let token = new URLSearchParams(location.search).get("t") || "";
+if (!token) { try { token = JSON.parse(localStorage.getItem("cafeOrders") || "[]")[0] || ""; } catch {} }
+
+let order = null;      // latest data from the server
+let offset = 0;        // server clock minus this device's clock (so a wrong phone clock doesn't matter)
+let pollTimer = null;
+let refs = {};         // elements that change every second
+
+const nowMs = () => Date.now() + offset;
+const isToday = (ms) => new Date(ms).toDateString() === new Date(nowMs()).toDateString();
+const when = (ms) => isToday(ms)
+  ? new Date(ms).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })
+  : new Date(ms).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const dur = (ms) => { const m = Math.round(ms / 60000); return m < 1 ? "under 1 min" : m + " min"; };
+const mmss = (ms) => { const s = Math.ceil(Math.max(0, ms) / 1000); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+
+// Small DOM helper. Text is always inserted as text, never as HTML.
+function h(tag, props = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") n.className = v;
+    else if (v !== false && v != null) n.setAttribute(k, v);
+  }
+  n.append(...kids.flat().filter((k) => k != null && k !== false));
+  return n;
+}
+
+function headline(o) {
+  const pickup = o.orderType === "pickup";
+  return {
+    new: "We’ve received your order",
+    preparing: "Your order is being prepared",
+    ready: pickup ? "Your order is ready!" : "Your order is on its way",
+    done: pickup ? "Order completed. Enjoy!" : "Delivered. Enjoy!",
+    cancelled: "This order was cancelled",
+  }[o.status];
+}
+
+function render() {
+  const o = order;
+  const pickup = o.orderType === "pickup";
+  const steps = ["Order received", "Being prepared", pickup ? "Ready for pickup" : "Out for delivery", "Completed"];
+  const at = { new: 0, preparing: 1, ready: 2, done: 3 }[o.status];
+
+  refs = { big: h("div", { class: "eta-big" }), label: h("div", { class: "eta-label" }), sub: h("div", { class: "eta-sub" }) };
+
+  const created = Date.parse(o.createdAt);
+  const log = [["Order placed", created, ""]];
+  if (o.acceptedAt) log.push(["Order accepted", Date.parse(o.acceptedAt), "after " + dur(Date.parse(o.acceptedAt) - created)]);
+  if (o.readyAt) log.push([pickup ? "Ready for pickup" : "Out for delivery", Date.parse(o.readyAt), o.acceptedAt ? "prepared in " + dur(Date.parse(o.readyAt) - Date.parse(o.acceptedAt)) : ""]);
+  if (o.doneAt) log.push(["Completed", Date.parse(o.doneAt), "total " + dur(Date.parse(o.doneAt) - created)]);
+
+  const wa = (() => { try { return sessionStorage.getItem("cafeWa:" + token); } catch { return null; } })();
+
+  $view.replaceChildren(
+    h("div", { class: "trk-card" },
+      h("p", { class: "trk-eyebrow" }, `ORDER #${o.orderId} · ${pickup ? "PICKUP" : "DELIVERY"}`),
+      h("h1", {}, headline(o)),
+      at === undefined ? null : h("div", { class: "steps" }, ...steps.map((label, i) =>
+        h("div", { class: "step" + (i < at || o.status === "done" ? " done" : i === at ? " now" : "") }, label)))),
+
+    o.status === "cancelled"
+      ? h("div", { class: "trk-card" }, h("p", {}, "Sorry, this order could not be completed. Please call us and we will help you right away."))
+      : h("div", { class: "trk-card eta" }, refs.big, refs.label, refs.sub),
+
+    h("div", { class: "trk-card" }, h("h2", {}, "Time tracking"),
+      h("ul", { class: "log" }, ...log.map(([name, ms, note]) =>
+        h("li", {}, h("div", {}, name, note ? h("small", {}, note) : null), h("span", { class: "when" }, when(ms)))))),
+
+    h("div", { class: "trk-card" }, h("h2", {}, "Your items"),
+      h("ul", { class: "lines" }, ...o.items.map((i) => h("li", {}, h("span", {}, `${i.name} × ${i.qty}`), h("span", {}, "₹" + i.price * i.qty)))),
+      h("div", { class: "sum" }, h("span", {}, "Total"), h("span", {}, "₹" + o.total))),
+
+    h("div", { class: "trk-actions" },
+      h("a", { class: "btn primary", href: "tel:+918108128277" }, "Call the cafe"),
+      wa ? h("a", { class: "btn", href: wa, target: "_blank", rel: "noopener" }, "Also send on WhatsApp") : null,
+      h("a", { class: "btn", href: "/#menu" }, "Back to menu")));
+  tick();
+}
+
+// Runs every second: updates only the countdown text.
+function tick() {
+  const o = order;
+  if (!o || !refs.big) return;
+  const now = nowMs();
+  const pickup = o.orderType === "pickup";
+  const eta = o.etaAt ? Date.parse(o.etaAt) : null;
+  let big = "", label = "", sub = "", title = "";
+
+  if (o.status === "new") {
+    big = mmss(now - Date.parse(o.createdAt));
+    label = "Waiting for the cafe to confirm";
+    sub = "We will set your estimated time as soon as the cafe accepts the order.";
+    title = "Order #" + o.orderId + " placed";
+  } else if (o.status === "preparing" || (o.status === "ready" && !pickup)) {
+    if (eta && eta > now) {
+      big = mmss(eta - now);
+      label = pickup ? "Estimated time until your order is ready" : "Estimated time until it reaches you";
+      sub = "Around " + when(eta);
+      title = mmss(eta - now) + " · Order #" + o.orderId;
+    } else {
+      big = o.status === "ready" ? "Arriving soon" : "Almost there";
+      label = o.status === "ready" ? "Your order is close by" : "Taking a little longer than expected";
+      sub = "Thank you for your patience.";
+      title = "Almost ready · Order #" + o.orderId;
+    }
+  } else if (o.status === "ready") {
+    big = "Ready";
+    label = "Please collect your order from the counter";
+    title = "Ready! · Order #" + o.orderId;
+  } else if (o.status === "done") {
+    big = dur(Date.parse(o.doneAt) - Date.parse(o.createdAt));
+    label = "Total time from order to completion";
+    title = "Completed · Order #" + o.orderId;
+  } else {
+    title = "Cancelled · Order #" + o.orderId;
+  }
+  refs.big.textContent = big; refs.label.textContent = label; refs.sub.textContent = sub;
+  document.title = title + " · Noir & Bean";
+}
+
+function showNotFound() {
+  $view.replaceChildren(h("div", { class: "trk-card" },
+    h("h1", {}, "We couldn’t find this order"),
+    h("p", { class: "trk-muted", style: "margin-bottom:18px" }, "The link may be incomplete. Please open the tracking link from the same phone you ordered with, or call us."),
+    h("div", { class: "trk-actions" },
+      h("a", { class: "btn primary", href: "tel:+918108128277" }, "Call the cafe"),
+      h("a", { class: "btn", href: "/" }, "Go to website"))));
+}
+
+async function load() {
+  clearTimeout(pollTimer);
+  if (!/^[0-9a-f]{24}$/.test(token)) { showNotFound(); return; }
+  let next = 8000;
+  try {
+    const res = await fetch("/api/track/" + token, { cache: "no-store" });
+    if (res.status === 404) { showNotFound(); return; }
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    offset = Date.parse(data.serverNow) - Date.now();
+    const { serverNow: _a, ...fresh } = data;
+    const { serverNow: _b, ...old } = order || {};
+    const changed = !order || JSON.stringify(fresh) !== JSON.stringify(old);
+    order = data;
+    if (changed) render(); else tick();
+    $net.textContent = "";
+    if (data.status === "done" || data.status === "cancelled") next = 30000;
+  } catch {
+    $net.textContent = "Connection problem. Retrying…";
+  }
+  pollTimer = setTimeout(load, next);
+}
+
+setInterval(tick, 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+load();
+</script>
+</body>
+</html>
