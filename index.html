@@ -98,16 +98,66 @@ function el(tag, className, text) {
 
 const findItem = (id) => menu.find((m) => m.id === id);
 
-async function loadMenu() {
-  const grid = document.getElementById("menuGrid");
-  try {
-    const res = await fetch("/api/menu");
-    if (!res.ok) throw new Error();
-    menu = await res.json();
-  } catch {
-    grid.replaceChildren(el("p", "empty", "Menu could not be loaded. Please refresh the page."));
-    return;
-  }
+function loadMenu() {
+    const grid = document.getElementById("menuGrid");
+
+    menu = [
+        {
+            id: 1,
+            name: "Espresso",
+            category: "Coffee",
+            price: 120,
+            description: "Rich and smooth espresso with a deep coffee aroma.",
+            image: "/images/espresso.jpg"
+        },
+        {
+            id: 2,
+            name: "Cappuccino",
+            category: "Coffee",
+            price: 160,
+            description: "Creamy cappuccino topped with a soft layer of foam.",
+            image: "/images/cappuccino.jpg"
+        },
+        {
+            id: 3,
+            name: "Café Latte",
+            category: "Coffee",
+            price: 180,
+            description: "Smooth espresso blended with steamed milk.",
+            image: "/images/latte.jpg"
+        },
+        {
+            id: 4,
+            name: "Mocha",
+            category: "Coffee",
+            price: 190,
+            description: "A delicious combination of espresso, chocolate and milk.",
+            image: "/images/mocha.jpg"
+        },
+        {
+            id: 5,
+            name: "Cold Coffee",
+            category: "Cold Drinks",
+            price: 170,
+            description: "Chilled, creamy and refreshing cold coffee.",
+            image: "/images/cold-coffee.jpg"
+        },
+        {
+            id: 6,
+            name: "Chocolate Cake",
+            category: "Dessert",
+            price: 220,
+            description: "Soft and rich chocolate cake for a sweet finish.",
+            image: "/images/chocolate-cake.jpg"
+        }
+    ];
+
+    if (!menu.length) {
+        grid.replaceChildren(
+            el("p", "empty", "Our menu is coming soon.")
+        );
+        return;
+    }
   if (!menu.length) {
     grid.replaceChildren(el("p", "empty", "Our menu is coming soon."));
     return;
