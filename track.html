@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
@@ -180,25 +181,45 @@ function showNotFound() {
       h("a", { class: "btn", href: "/" }, "Go to website"))));
 }
 
+const supabaseUrl = "https://cnomewivcteirqcjrbsb.supabase.co";
+const supabaseKey = "sb_publishable__uN8ncS39lPrvPnCQZQaDQ_gBWw6TMi";
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
 async function load() {
   clearTimeout(pollTimer);
-  if (!/^[0-9a-f]{24}$/.test(token)) { showNotFound(); return; }
+  if (!/^[0-9a-f]{32}$/.test(token)) { showNotFound(); return; }
   let next = 8000;
   try {
-    const res = await fetch("/api/track/" + token, { cache: "no-store" });
-    if (res.status === 404) { showNotFound(); return; }
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-    offset = Date.parse(data.serverNow) - Date.now();
-    const { serverNow: _a, ...fresh } = data;
-    const { serverNow: _b, ...old } = order || {};
+    const { data: row, error } = await supabaseClient
+      .from("orders")
+      .select("*")
+      .eq("track_token", token)
+      .single();
+
+    if (error || !row) { showNotFound(); return; }
+
+    const data = {
+      orderId: row.id,
+      orderType: row.order_type,
+      status: row.status,
+      createdAt: row.created_at,
+      acceptedAt: row.accepted_at,
+      readyAt: row.ready_at,
+      doneAt: row.done_at,
+      items: row.items,
+      total: row.total
+    };
+
+    offset = 0;
+    const { orderId: _a, ...fresh } = data;
+    const { orderId: _b, ...old } = order || {};
     const changed = !order || JSON.stringify(fresh) !== JSON.stringify(old);
     order = data;
     if (changed) render(); else tick();
     $net.textContent = "";
     if (data.status === "done" || data.status === "cancelled") next = 30000;
   } catch {
-    $net.textContent = "Connection problem. Retrying…";
+    $net.textContent = "Connection problem. Retrying...";
   }
   pollTimer = setTimeout(load, next);
 }
