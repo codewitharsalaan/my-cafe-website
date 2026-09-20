@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+<head> 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Noir & Bean Cafe in Shivaji Nagar, Govandi.">
@@ -86,6 +87,13 @@
 <footer class="footer"><p>© 2026 Noir & Bean</p><p>Shivaji Nagar, Govandi, Mumbai</p></footer>
 
 <script>
+  const supabaseUrl = "https://cnomewivcteirqcjrbsb.supabase.co";
+  const supabaseKey = "sb_publishable__uN8ncS39lPrvPnCQZQaDQ_gBWw6TMi";
+  const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+  let menu = [];
+  const findItem = (id) => menu.find((m) => m.id === id);
+  // ... baaki code
+</script>
 let menu = [];            // items from the server
 const cart = new Map();   // item id -> quantity
 
@@ -251,29 +259,34 @@ orderForm.addEventListener("submit", async function (e) {
 
   const btn = this.querySelector("button[type=submit]");
   const label = btn.textContent;
-  btn.disabled = true; btn.textContent = "Placing order…";
+  btn.disabled = true; btn.textContent = "Placing order...";
 
   try {
-    const res = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: document.getElementById("name").value,
+    const orderItems = [...cart].map(([id, qty]) => {
+      const item = findItem(id);
+      return { id, name: item.name, price: item.price, qty };
+    });
+    const total = orderItems.reduce((sum, i) => sum + i.price * i.qty, 0);
+
+    const { data, error } = await supabaseClient
+      .from("orders")
+      .insert({
+        customer_name: document.getElementById("name").value,
         phone: document.getElementById("phone").value,
-        orderType: this.elements.orderType.value,
+        order_type: this.elements.orderType.value,
         address: document.getElementById("address").value,
         note: document.getElementById("note").value,
-        items: [...cart].map(([id, qty]) => ({ id, qty })),
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      if (data.code === "ITEMS_CHANGED") await loadMenu();
-      throw new Error(data.error || "Could not place your order. Please try again.");
-    }
-    rememberOrder(data.trackToken);
-    try { sessionStorage.setItem("cafeWa:" + data.trackToken, data.whatsappUrl); } catch {}
-    location.href = "/track.html?t=" + encodeURIComponent(data.trackToken);
+        items: orderItems,
+        total: total
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message || "Could not place your order. Please try again.");
+
+    rememberOrder(data.track_token);
+    try { sessionStorage.setItem("cafeWa:" + data.track_token, ""); } catch {}
+    location.href = "/track.html?t=" + encodeURIComponent(data.track_token);
   } catch (err) {
     alert(err.message);
     btn.disabled = false; btn.textContent = label;
